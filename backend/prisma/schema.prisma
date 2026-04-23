@@ -1,0 +1,260 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  EXECUTIVE
+  LEGAL_COMPLIANCE
+  QUALIFICATIONS
+  CUSTOMER_SUCCESS
+  FINANCE_TREASURY
+  MEMBER
+  PARTNER
+  OPERATOR
+}
+
+enum ParticipantClassCode {
+  FOUNDING_MEMBER
+  GENERAL_MEMBER
+  CUSTOMER
+  CHANNEL_PARTNER
+  AFFILIATE
+  INTERN
+  DEVELOPER
+  EQUITY_AFFILIATE
+  EQUITY_PARTNER
+  STRATEGIC_PARTNER
+  OEM_PARTNER
+  TRADE_OPERATOR
+  CAPITAL_PARTICIPANT
+  VERIFICATION_ACTOR
+  SETTLEMENT_PARTICIPANT
+  INSTITUTIONAL_PARTICIPANT
+  THIRD_PARTY_OPERATOR
+}
+
+enum MembershipTierCode {
+  MEMBER
+  ASSOCIATE
+  CERTIFIED
+  EXECUTIVE
+  STRATEGIC
+  FOUNDING
+  SOVEREIGN
+}
+
+enum VerificationLevel {
+  UNVERIFIED
+  BASIC_VERIFIED
+  IDENTITY_VERIFIED
+  COMMERCIAL_VERIFIED
+  INSTITUTIONAL_VERIFIED
+  CAPITAL_VERIFIED
+  GOVERNANCE_APPROVED
+}
+
+enum VerificationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum WalletTransactionType {
+  REWARD_CREDIT
+  COMMISSION_CREDIT
+  REFERRAL_BONUS
+  REDEMPTION
+  WITHDRAWAL
+  SETTLEMENT
+  ADJUSTMENT
+}
+
+enum OpportunityType {
+  INVESTMENT
+  TRADE
+  TOURISM
+  PARTNERSHIP
+  CAREER
+  MARKETPLACE
+}
+
+enum OpportunityAccessRule {
+  PUBLIC
+  VERIFIED_ONLY
+  CERTIFIED_PLUS
+  EXECUTIVE_PLUS
+  STRATEGIC_PLUS
+  INVITE_ONLY
+}
+
+model User {
+  id                String               @id @default(cuid())
+  email             String               @unique
+  name              String?
+  passwordHash      String?
+  role              UserRole             @default(MEMBER)
+  isActive          Boolean              @default(true)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  memberProfile     MemberProfile?
+  createdAuditLogs  AuditLog[]           @relation("AuditActor")
+
+  @@map("users")
+}
+
+model ParticipantClass {
+  id                String               @id @default(cuid())
+  code              ParticipantClassCode @unique
+  name              String
+  description       String?
+  isActive          Boolean              @default(true)
+  profiles          MemberProfile[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@map("participant_classes")
+}
+
+model MembershipTier {
+  id                String               @id @default(cuid())
+  code              MembershipTierCode   @unique
+  name              String
+  rank              Int
+  description       String?
+  isActive          Boolean              @default(true)
+  profiles          MemberProfile[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@map("membership_tiers")
+}
+
+model MemberProfile {
+  id                   String               @id @default(cuid())
+  userId               String               @unique
+  participantClassId   String
+  tierId               String
+  verificationLevel    VerificationLevel    @default(UNVERIFIED)
+  displayName          String?
+  country              String?
+  phone                String?
+  businessName         String?
+  referralCode         String               @unique
+  referredByProfileId  String?
+  aurexWalletId        String?
+  status               String               @default("ACTIVE")
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  user                 User                 @relation(fields: [userId], references: [id])
+  participantClass     ParticipantClass     @relation(fields: [participantClassId], references: [id])
+  tier                 MembershipTier       @relation(fields: [tierId], references: [id])
+  wallet               AurexWallet?
+  verificationRecords  VerificationRecord[]
+  documents            MemberDocument[]
+  referralsSent        Referral[]           @relation("ReferralSender")
+  referralsReceived    Referral[]           @relation("ReferralReceiver")
+
+  @@map("member_profiles")
+}
+
+model VerificationRecord {
+  id                   String               @id @default(cuid())
+  memberProfileId      String
+  requestedLevel       VerificationLevel
+  status               VerificationStatus   @default(PENDING)
+  notes                String?
+  reviewedByUserId     String?
+  submittedAt          DateTime             @default(now())
+  reviewedAt           DateTime?
+  memberProfile        MemberProfile        @relation(fields: [memberProfileId], references: [id])
+
+  @@map("verification_records")
+}
+
+model MemberDocument {
+  id                   String               @id @default(cuid())
+  memberProfileId      String
+  documentType         String
+  fileUrl              String
+  fileName             String
+  uploadedAt           DateTime             @default(now())
+  memberProfile        MemberProfile        @relation(fields: [memberProfileId], references: [id])
+
+  @@map("member_documents")
+}
+
+model AurexWallet {
+  id                   String               @id @default(cuid())
+  memberProfileId      String               @unique
+  balance              Decimal              @default(0) @db.Decimal(18, 4)
+  currencyCode         String               @default("ARX")
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  memberProfile        MemberProfile        @relation(fields: [memberProfileId], references: [id])
+  transactions         WalletTransaction[]
+
+  @@map("aurex_wallets")
+}
+
+model WalletTransaction {
+  id                   String               @id @default(cuid())
+  walletId             String
+  type                 WalletTransactionType
+  amount               Decimal              @db.Decimal(18, 4)
+  reference            String?
+  notes                String?
+  createdAt            DateTime             @default(now())
+  wallet               AurexWallet          @relation(fields: [walletId], references: [id])
+
+  @@map("wallet_transactions")
+}
+
+model Referral {
+  id                    String              @id @default(cuid())
+  senderProfileId       String
+  receiverProfileId     String?
+  receiverEmail         String?
+  campaignCode          String?
+  status                String              @default("PENDING")
+  createdAt             DateTime            @default(now())
+  sender                MemberProfile       @relation("ReferralSender", fields: [senderProfileId], references: [id])
+  receiver              MemberProfile?      @relation("ReferralReceiver", fields: [receiverProfileId], references: [id])
+
+  @@map("referrals")
+}
+
+model Opportunity {
+  id                    String               @id @default(cuid())
+  title                 String
+  description           String?
+  type                  OpportunityType
+  accessRule            OpportunityAccessRule
+  isPublished           Boolean              @default(false)
+  country               String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@map("opportunities")
+}
+
+model AuditLog {
+  id                    String               @id @default(cuid())
+  actorUserId           String?
+  entityType            String
+  entityId              String
+  action                String
+  payloadJson           Json?
+  createdAt             DateTime             @default(now())
+  actor                 User?                @relation("AuditActor", fields: [actorUserId], references: [id])
+
+  @@map("audit_logs")
+}

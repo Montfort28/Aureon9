@@ -1,0 +1,28 @@
+import React from 'react';
+import { ShieldCheck, Wallet } from 'lucide-react';
+import { PageHero, SectionBlock, InfoRow, ShowcaseCard } from '../../components/public/PublicPrimitives';
+import { aurexIntegration, rewardControls, rewardTypes } from '../../data/publicSiteContent';
+import { Coins } from 'lucide-react';
+
+export default function RewardsPage() {
+  return (
+    <div className="space-y-10">
+      <PageHero title="Rewards System" intro="The rewards page explains what participants can earn, how AUREX connects, and how controls prevent abuse." />
+      <SectionBlock eyebrow="Reward Engine" title="What participants can earn" description="These reward types are named directly in the master prompt.">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {rewardTypes.map((reward) => (
+            <ShowcaseCard key={reward} title={reward} icon={Coins} compact><p className="text-sm leading-6 text-slate-600">Reward logic later depends on triggers, calculations, distribution, expiry, and anti-abuse control.</p></ShowcaseCard>
+          ))}
+        </div>
+      </SectionBlock>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <SectionBlock eyebrow="AUREX Integration" title="How the reward layer connects to settlement" description="The economic integration section ties AUREON9 to the AUREX wallet and treasury flow.">
+          <div className="grid gap-3 sm:grid-cols-2">{aurexIntegration.map((item) => <InfoRow key={item} icon={Wallet} text={item} />)}</div>
+        </SectionBlock>
+        <SectionBlock eyebrow="Controls" title="How the reward layer stays governed" description="The master prompt requires controlled formulas and anti-abuse logic rather than open-ended payouts.">
+          <div className="grid gap-3 sm:grid-cols-2">{rewardControls.map((item) => <InfoRow key={item} icon={ShieldCheck} text={item} />)}</div>
+        </SectionBlock>
+      </div>
+    </div>
+  );
+}
