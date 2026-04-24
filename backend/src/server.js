@@ -9,17 +9,24 @@ import { createSignedUpload, UPLOAD_ROOT, writeUploadedBinary } from './lib/stor
 import { optionalAuth, requireAuth, signToken } from './lib/auth.js';
 import { writeAuditLog } from './lib/audit.js';
 import {
+  canAssignReviewer,
   canApproveVerification,
   canAccessOpportunity,
+  canEscalate,
+  canReject,
+  canReview,
   hasBackofficeAccess,
 } from './lib/permissions.js';
 import {
   validateAccessRule,
+  validateDocumentReviewStatus,
   validateEmail,
   validateOpportunityType,
   validateParticipantClass,
   validatePassword,
+  validateReviewQueueStatus,
   validateVerificationLevel,
+  validateVerificationStatus,
 } from './lib/validation.js';
 
 dotenv.config();
@@ -50,6 +57,58 @@ function requireBackoffice(req, res, next) {
 function normalizeNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getReviewQueueInclude() {
+  return {
+    memberProfile: {
+      include: {
+        user: true,
+        tier: true,
+        participantClass: true,
+        documents: true,
+      },
+    },
+    actions: { orderBy: { createdAt: 'desc' }, take: 20 },
+  };
+}
+
+function isHighRiskCase(record) {
+  const highRiskLevels = ['CAPITAL_VERIFIED', 'GOVERNANCE_APPROVED'];
+  const highRiskClasses = ['CAPITAL_PARTICIPANT', 'STRATEGIC_PARTNER', 'INSTITUTIONAL_PARTICIPANT'];
+  const requestedLevel = record.requestedLevel;
+  const participantClassCode = record.memberProfile?.participantClass?.code;
+  const documentCount = record.memberProfile?.documents?.length ?? 0;
+
+  return (
+    highRiskLevels.includes(requestedLevel) ||
+    highRiskClasses.includes(participantClassCode) ||
+    documentCount === 0
+  );
+}
+
+function getReviewRisk(record) {
+  if (isHighRiskCase(record)) {
+    return 'HIGH';
+  }
+
+  if (record.requestedLevel === 'COMMERCIAL_VERIFIED' || (record.memberProfile?.documents?.length ?? 0) < 2) {
+    return 'MEDIUM';
+  }
+
+  return 'LOW';
+}
+
+async function createReviewAction(tx, verificationRecordId, actionType, actorUserId, notes, payloadJson) {
+  return tx.reviewAction.create({
+    data: {
+      verificationRecordId,
+      actionType,
+      actorUserId: actorUserId ?? null,
+      notes: notes || null,
+      payloadJson: payloadJson ?? null,
+    },
+  });
 }
 
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }));
@@ -276,9 +335,20 @@ app.post('/api/verification-records', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const record = await prisma.verificationRecord.create({
-      data: { memberProfileId, requestedLevel, notes, status: 'PENDING' },
-      include: { memberProfile: { include: { user: true } } },
+    const record = await prisma.$transaction(async (tx) => {
+      const created = await tx.verificationRecord.create({
+        data: {
+          memberProfileId,
+          requestedLevel,
+          notes,
+          status: 'PENDING',
+          queueStatus: 'PENDING',
+        },
+        include: { memberProfile: { include: { user: true, documents: true, participantClass: true, tier: true } }, actions: true },
+      });
+
+      await createReviewAction(tx, created.id, 'CREATE_CASE', req.auth.id, notes, { requestedLevel });
+      return created;
     });
 
     await writeAuditLog({
@@ -318,16 +388,30 @@ app.get('/api/verification-records/:id', requireAuth, async (req, res) => {
 
 app.patch('/api/verification-records/:id', requireAuth, requireBackoffice, async (req, res) => {
   try {
-    const { status, notes, reviewedByUserId } = req.body;
-    const record = await prisma.verificationRecord.update({
-      where: { id: req.params.id },
-      data: {
-        status,
-        notes,
-        reviewedByUserId: reviewedByUserId || req.auth.id,
-        reviewedAt: status ? new Date() : undefined,
-      },
-      include: { memberProfile: { include: { user: true } } },
+    const { status, notes, reviewedByUserId, queueStatus } = req.body;
+    if ((status && !validateVerificationStatus(status)) || (queueStatus && !validateReviewQueueStatus(queueStatus))) {
+      return res.status(400).json({ error: 'Invalid verification update payload' });
+    }
+
+    const nextQueueStatus =
+      queueStatus ||
+      (status === 'APPROVED' ? 'APPROVED' : status === 'REJECTED' ? 'REJECTED' : status === 'UNDER_REVIEW' ? 'UNDER_REVIEW' : undefined);
+
+    const record = await prisma.$transaction(async (tx) => {
+      const updated = await tx.verificationRecord.update({
+        where: { id: req.params.id },
+        data: {
+          status,
+          notes,
+          queueStatus: nextQueueStatus,
+          reviewedByUserId: reviewedByUserId || req.auth.id,
+          reviewedAt: status ? new Date() : undefined,
+        },
+        include: getReviewQueueInclude(),
+      });
+
+      await createReviewAction(tx, updated.id, 'ADD_NOTE', req.auth.id, notes, { status, queueStatus: nextQueueStatus });
+      return updated;
     });
 
     await writeAuditLog({
@@ -360,6 +444,7 @@ app.post('/api/verification-records/:id/approve', requireAuth, async (req, res) 
         where: { id: req.params.id },
         data: {
           status: 'APPROVED',
+          queueStatus: 'APPROVED',
           reviewedByUserId: req.auth.id,
           reviewedAt: new Date(),
           notes: req.body.notes || record.notes,
@@ -371,7 +456,14 @@ app.post('/api/verification-records/:id/approve', requireAuth, async (req, res) 
         data: { verificationLevel: record.requestedLevel },
       });
 
-      return approvedRecord;
+      await createReviewAction(tx, approvedRecord.id, 'APPROVE', req.auth.id, req.body.notes, {
+        requestedLevel: record.requestedLevel,
+      });
+
+      return tx.verificationRecord.findUnique({
+        where: { id: approvedRecord.id },
+        include: getReviewQueueInclude(),
+      });
     });
 
     await writeAuditLog({
@@ -388,13 +480,43 @@ app.post('/api/verification-records/:id/approve', requireAuth, async (req, res) 
   }
 });
 
-app.get('/api/review-queue', requireAuth, requireBackoffice, async (_req, res) => {
+app.get('/api/review-queue', requireAuth, async (req, res) => {
   try {
+    if (!canReview(req.auth.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const { status, requestedLevel, participantClass } = req.query;
+    if (status && !validateReviewQueueStatus(String(status))) {
+      return res.status(400).json({ error: 'Invalid review queue status filter' });
+    }
+    if (requestedLevel && !validateVerificationLevel(String(requestedLevel))) {
+      return res.status(400).json({ error: 'Invalid verification level filter' });
+    }
+    if (participantClass && !validateParticipantClass(String(participantClass))) {
+      return res.status(400).json({ error: 'Invalid participant class filter' });
+    }
+
     const queue = await prisma.verificationRecord.findMany({
-      include: { memberProfile: { include: { user: true, tier: true, participantClass: true } } },
+      where: {
+        ...(status ? { queueStatus: String(status) } : {}),
+        ...(requestedLevel ? { requestedLevel: String(requestedLevel) } : {}),
+      },
+      include: getReviewQueueInclude(),
       orderBy: { submittedAt: 'desc' },
     });
-    return res.json(queue);
+
+    const filteredQueue = participantClass
+      ? queue.filter((item) => item.memberProfile?.participantClass?.code === String(participantClass))
+      : queue;
+
+    const enrichedQueue = filteredQueue.map((item) => ({
+      ...item,
+      risk: getReviewRisk(item),
+      isHighRisk: isHighRiskCase(item),
+    }));
+
+    return res.json(enrichedQueue);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -417,6 +539,7 @@ app.post('/api/review-queue/approve', requireAuth, async (req, res) => {
         where: { id: verificationRecordId },
         data: {
           status: 'APPROVED',
+          queueStatus: 'APPROVED',
           reviewedByUserId: req.auth.id,
           reviewedAt: new Date(),
           notes: notes || record.notes,
@@ -428,7 +551,14 @@ app.post('/api/review-queue/approve', requireAuth, async (req, res) => {
         data: { verificationLevel: record.requestedLevel },
       });
 
-      return approvedRecord;
+      await createReviewAction(tx, verificationRecordId, 'APPROVE', req.auth.id, notes, {
+        requestedLevel: record.requestedLevel,
+      });
+
+      return tx.verificationRecord.findUnique({
+        where: { id: verificationRecordId },
+        include: getReviewQueueInclude(),
+      });
     });
 
     await writeAuditLog({
@@ -445,12 +575,30 @@ app.post('/api/review-queue/approve', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/review-queue/reject', requireAuth, requireBackoffice, async (req, res) => {
+app.post('/api/review-queue/reject', requireAuth, async (req, res) => {
   try {
+    if (!canReject(req.auth.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     const { verificationRecordId, notes } = req.body;
-    const updated = await prisma.verificationRecord.update({
-      where: { id: verificationRecordId },
-      data: { status: 'REJECTED', notes, reviewedByUserId: req.auth.id, reviewedAt: new Date() },
+    const updated = await prisma.$transaction(async (tx) => {
+      const rejected = await tx.verificationRecord.update({
+        where: { id: verificationRecordId },
+        data: {
+          status: 'REJECTED',
+          queueStatus: 'REJECTED',
+          notes,
+          reviewedByUserId: req.auth.id,
+          reviewedAt: new Date(),
+        },
+      });
+
+      await createReviewAction(tx, verificationRecordId, 'REJECT', req.auth.id, notes, null);
+      return tx.verificationRecord.findUnique({
+        where: { id: rejected.id },
+        include: getReviewQueueInclude(),
+      });
     });
 
     await writeAuditLog({ actorUserId: req.auth.id, entityType: 'VerificationRecord', entityId: verificationRecordId, action: 'REJECT_VERIFICATION', payloadJson: { notes } });
@@ -460,12 +608,28 @@ app.post('/api/review-queue/reject', requireAuth, requireBackoffice, async (req,
   }
 });
 
-app.post('/api/review-queue/escalate', requireAuth, requireBackoffice, async (req, res) => {
+app.post('/api/review-queue/escalate', requireAuth, async (req, res) => {
   try {
+    if (!canEscalate(req.auth.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     const { verificationRecordId, notes } = req.body;
-    const updated = await prisma.verificationRecord.update({
-      where: { id: verificationRecordId },
-      data: { status: 'UNDER_REVIEW', notes: notes ? `ESCALATED: ${notes}` : 'ESCALATED' },
+    const updated = await prisma.$transaction(async (tx) => {
+      const escalated = await tx.verificationRecord.update({
+        where: { id: verificationRecordId },
+        data: {
+          status: 'UNDER_REVIEW',
+          queueStatus: 'ESCALATED',
+          notes: notes ? `ESCALATED: ${notes}` : 'ESCALATED',
+        },
+      });
+
+      await createReviewAction(tx, verificationRecordId, 'ESCALATE', req.auth.id, notes, null);
+      return tx.verificationRecord.findUnique({
+        where: { id: escalated.id },
+        include: getReviewQueueInclude(),
+      });
     });
 
     await writeAuditLog({ actorUserId: req.auth.id, entityType: 'VerificationRecord', entityId: verificationRecordId, action: 'ESCALATE_VERIFICATION', payloadJson: { notes } });
@@ -475,12 +639,31 @@ app.post('/api/review-queue/escalate', requireAuth, requireBackoffice, async (re
   }
 });
 
-app.post('/api/review-queue/assign-reviewer', requireAuth, requireBackoffice, async (req, res) => {
+app.post('/api/review-queue/assign-reviewer', requireAuth, async (req, res) => {
   try {
+    if (!canAssignReviewer(req.auth.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     const { verificationRecordId, reviewerUserId, notes } = req.body;
-    const updated = await prisma.verificationRecord.update({
-      where: { id: verificationRecordId },
-      data: { notes: [notes, `Assigned reviewer: ${reviewerUserId}`].filter(Boolean).join(' | ') },
+    const updated = await prisma.$transaction(async (tx) => {
+      const assigned = await tx.verificationRecord.update({
+        where: { id: verificationRecordId },
+        data: {
+          assignedReviewerId: reviewerUserId,
+          queueStatus: 'UNDER_REVIEW',
+          notes: [notes, `Assigned reviewer: ${reviewerUserId}`].filter(Boolean).join(' | '),
+        },
+      });
+
+      await createReviewAction(tx, verificationRecordId, 'ASSIGN_REVIEWER', req.auth.id, notes, {
+        reviewerUserId,
+      });
+
+      return tx.verificationRecord.findUnique({
+        where: { id: assigned.id },
+        include: getReviewQueueInclude(),
+      });
     });
 
     await writeAuditLog({ actorUserId: req.auth.id, entityType: 'VerificationRecord', entityId: verificationRecordId, action: 'ASSIGN_REVIEWER', payloadJson: { reviewerUserId, notes } });
@@ -490,15 +673,31 @@ app.post('/api/review-queue/assign-reviewer', requireAuth, requireBackoffice, as
   }
 });
 
-app.post('/api/review-queue/request-more-docs', requireAuth, requireBackoffice, async (req, res) => {
+app.post('/api/review-queue/request-more-docs', requireAuth, async (req, res) => {
   try {
+    if (!canReview(req.auth.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     const { verificationRecordId, notes, requiredDocuments } = req.body;
-    const updated = await prisma.verificationRecord.update({
-      where: { id: verificationRecordId },
-      data: {
-        status: 'UNDER_REVIEW',
-        notes: [notes, requiredDocuments?.length ? `Required: ${requiredDocuments.join(', ')}` : null].filter(Boolean).join(' | '),
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const requested = await tx.verificationRecord.update({
+        where: { id: verificationRecordId },
+        data: {
+          status: 'UNDER_REVIEW',
+          queueStatus: 'REQUESTED_MORE_DOCUMENTS',
+          notes: [notes, requiredDocuments?.length ? `Required: ${requiredDocuments.join(', ')}` : null].filter(Boolean).join(' | '),
+        },
+      });
+
+      await createReviewAction(tx, verificationRecordId, 'REQUEST_MORE_DOCUMENTS', req.auth.id, notes, {
+        requiredDocuments,
+      });
+
+      return tx.verificationRecord.findUnique({
+        where: { id: requested.id },
+        include: getReviewQueueInclude(),
+      });
     });
 
     await writeAuditLog({ actorUserId: req.auth.id, entityType: 'VerificationRecord', entityId: verificationRecordId, action: 'REQUEST_MORE_DOCUMENTS', payloadJson: { notes, requiredDocuments } });
@@ -587,7 +786,16 @@ app.post('/api/documents/finalize-upload', requireAuth, async (req, res) => {
     }
 
     const document = await prisma.memberDocument.create({
-      data: { memberProfileId, documentType, fileUrl, fileName },
+      data: {
+        memberProfileId,
+        documentType,
+        verificationPurpose,
+        fileUrl,
+        storageKey,
+        fileName,
+        mimeType,
+        sizeBytes: sizeBytes ? Number(sizeBytes) : null,
+      },
       include: { memberProfile: { include: { user: true } } },
     });
 
@@ -607,7 +815,7 @@ app.post('/api/documents/finalize-upload', requireAuth, async (req, res) => {
 
 app.post('/api/documents', requireAuth, async (req, res) => {
   try {
-    const { memberProfileId, documentType, fileUrl, fileName } = req.body;
+    const { memberProfileId, documentType, verificationPurpose, fileUrl, storageKey, fileName, mimeType, sizeBytes } = req.body;
     if (!memberProfileId || !documentType || !fileUrl || !fileName) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -616,12 +824,52 @@ app.post('/api/documents', requireAuth, async (req, res) => {
     }
 
     const document = await prisma.memberDocument.create({
-      data: { memberProfileId, documentType, fileUrl, fileName },
+      data: {
+        memberProfileId,
+        documentType,
+        verificationPurpose,
+        fileUrl,
+        storageKey,
+        fileName,
+        mimeType,
+        sizeBytes: sizeBytes ? Number(sizeBytes) : null,
+      },
       include: { memberProfile: { include: { user: true } } },
     });
 
     await writeAuditLog({ actorUserId: req.auth.id, entityType: 'MemberDocument', entityId: document.id, action: 'CREATE_DOCUMENT', payloadJson: { documentType } });
     return res.status(201).json(document);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.patch('/api/documents/:id/review-status', requireAuth, async (req, res) => {
+  try {
+    if (!canReview(req.auth.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const { reviewStatus, notes } = req.body;
+    if (!validateDocumentReviewStatus(reviewStatus)) {
+      return res.status(400).json({ error: 'Invalid document review status' });
+    }
+
+    const updated = await prisma.memberDocument.update({
+      where: { id: req.params.id },
+      data: { reviewStatus },
+      include: { memberProfile: { include: { user: true } } },
+    });
+
+    await writeAuditLog({
+      actorUserId: req.auth.id,
+      entityType: 'MemberDocument',
+      entityId: updated.id,
+      action: 'UPDATE_DOCUMENT_REVIEW_STATUS',
+      payloadJson: { reviewStatus, notes },
+    });
+
+    return res.json(updated);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

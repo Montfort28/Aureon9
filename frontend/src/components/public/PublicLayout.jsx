@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Menu, X } from 'lucide-react';
+import { HiOutlineMenu, HiOutlineX } from 'react-icons/hi';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { publicNav } from '../../data/publicSiteContent';
 
-const brandLogo = 'public/images/AUREON9%E2%84%A2.png';
+const brandLogo = '/images/AUREON9%E2%84%A2.png';
+const odieLogo  = '/images/Powered_By_ODIEBOARD.png';
 
 function NavButton({ label, to, fullWidth = false }) {
   return (
@@ -27,8 +28,10 @@ export default function PublicLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
 
+  // Close mobile menu AND scroll to top on every route change
   useEffect(() => {
     setMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }, [location.pathname]);
 
   return (
@@ -42,9 +45,9 @@ export default function PublicLayout() {
       <header className="sticky top-0 z-30 border-b border-white/50 bg-white/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <NavLink to="/" className="flex items-center gap-3 text-left">
-            <img src={brandLogo} alt="AUREON9 logo" className="h-11 w-11 object-contain" />
+            <img src={brandLogo} alt="AUREON9 logo" className="h-14 w-14 object-contain" />
             <div>
-              <p className="font-heading text-lg font-semibold tracking-tight text-[var(--aureon-ink)]">AUREON9</p>
+              <p className="font-heading text-xl font-semibold tracking-tight text-[var(--aureon-ink)]">AUREON9</p>
               <p className="text-xs text-slate-500">Global membership and rewards</p>
             </div>
           </NavLink>
@@ -69,7 +72,7 @@ export default function PublicLayout() {
             className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 lg:hidden"
             aria-label="Toggle navigation"
           >
-            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {menuOpen ? <HiOutlineX className="h-5 w-5" /> : <HiOutlineMenu className="h-5 w-5" />}
           </button>
         </div>
 
@@ -93,39 +96,81 @@ export default function PublicLayout() {
       </header>
 
       <main className="relative z-10">
-        <section className="mx-auto max-w-7xl px-4 pt-12 sm:px-6 lg:px-8 lg:pt-16">
+        <section className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8 lg:pt-8">
           <Outlet />
         </section>
       </main>
 
       <footer className="relative z-10 mt-16 border-t border-[#14385f] bg-[var(--aureon-ink)] text-white">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-8">
-          <div className="flex items-start gap-4">
-            <img src={brandLogo} alt="AUREON9 logo" className="h-14 w-14 object-contain" />
-            <div>
-              <p className="font-heading text-xl font-semibold text-white">AUREON9</p>
-              <p className="mt-1 text-sm text-slate-200">Global membership and rewards</p>
+        {/* Main footer grid */}
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.4fr_1fr_1fr_1fr] lg:px-8">
+
+          {/* Brand column */}
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-4">
+              <img src={brandLogo} alt="AUREON9 logo" className="h-20 w-20 object-contain" />
+              <div>
+                <p className="font-heading text-2xl font-semibold text-white">AUREON9</p>
+                <p className="mt-1 text-sm text-slate-300">Global membership and rewards</p>
+              </div>
+            </div>
+            <p className="max-w-xs text-sm leading-7 text-slate-400">
+              Enterprise-grade membership, identity, verification, and rewards infrastructure — powered by ODIEBOARD.
+            </p>
+          </div>
+
+          {/* Public Pages */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Public Pages</p>
+            <div className="mt-4 space-y-2 text-sm text-slate-300">
+              {publicNav.map((item) => (
+                <NavLink key={item.route} className="block transition hover:text-white" to={item.route}>
+                  {item.label}
+                </NavLink>
+              ))}
             </div>
           </div>
-          <div className="grid gap-6 sm:grid-cols-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Public Pages</p>
-              <div className="mt-3 space-y-2 text-sm text-slate-200">
-                {publicNav.map((item) => (
-                  <NavLink key={item.route} className="block hover:text-white" to={item.route}>
-                    {item.label}
-                  </NavLink>
-                ))}
-              </div>
+
+          {/* Access */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Access</p>
+            <div className="mt-4 space-y-2 text-sm text-slate-300">
+              <NavLink className="block transition hover:text-white" to="/request-access">Request Access</NavLink>
+              <NavLink className="block transition hover:text-white" to="/login">Login</NavLink>
+              <NavLink className="block transition hover:text-white" to="/register">Register</NavLink>
+              <NavLink className="block transition hover:text-white" to="/dashboard/member">Member Dashboard</NavLink>
+              <NavLink className="block transition hover:text-white" to="/dashboard/admin-review">Admin Review</NavLink>
+              <NavLink className="block transition hover:text-white" to="/dashboard/admin-settings">Admin Settings</NavLink>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Access</p>
-              <div className="mt-3 space-y-2 text-sm text-slate-200">
-                <NavLink className="block hover:text-white" to="/request-access">Request Access</NavLink>
-                <NavLink className="block hover:text-white" to="/login">Login / Dashboard Access</NavLink>
-                <NavLink className="block hover:text-white" to="/dashboard/member">Member Dashboard Demo</NavLink>
-              </div>
+          </div>
+
+          {/* Ecosystem */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Ecosystem</p>
+            <div className="mt-4 space-y-2 text-sm text-slate-300">
+              <span className="block">ODIEBOARD</span>
+              <span className="block">ODIECLOUD²π</span>
+              <span className="block">ODIEXA</span>
+              <span className="block">AUREX</span>
+              <span className="block">Oπ</span>
+              <span className="block">AAL</span>
             </div>
+          </div>
+        </div>
+
+        {/* Bottom legal bar */}
+        <div className="border-t border-white/10">
+          <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-6 px-4 py-6 sm:px-6 lg:flex-row lg:items-center lg:px-8">
+            <div className="space-y-1 text-xs leading-6 text-slate-400">
+              <p>All Oderson Holdings subsidiaries are Members of the ODIECLOUD²π Ecosystem.</p>
+              <p>ODIECLOUD²π, ODIEBOARD, Oπ, ODIEXA, and AUREX are Registered Trademark and Service Marks of Oderson Holdings Ltd.</p>
+              <p>© Copyright Aureon9. All Rights Reserved.</p>
+            </div>
+            <img
+              src={odieLogo}
+              alt="Powered by ODIEBOARD"
+              className="h-20 w-auto object-contain opacity-90"
+            />
           </div>
         </div>
       </footer>

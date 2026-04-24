@@ -17,6 +17,26 @@ export function canApproveVerification(role) {
   return approvalRoles.includes(role);
 }
 
+export function canReview(role) {
+  const reviewRoles = ['SUPER_ADMIN', 'EXECUTIVE', 'LEGAL_COMPLIANCE', 'QUALIFICATIONS'];
+  return reviewRoles.includes(role);
+}
+
+export function canAssignReviewer(role) {
+  const assignmentRoles = ['SUPER_ADMIN', 'EXECUTIVE', 'LEGAL_COMPLIANCE'];
+  return assignmentRoles.includes(role);
+}
+
+export function canEscalate(role) {
+  const escalationRoles = ['SUPER_ADMIN', 'LEGAL_COMPLIANCE', 'QUALIFICATIONS'];
+  return escalationRoles.includes(role);
+}
+
+export function canReject(role) {
+  const rejectionRoles = ['SUPER_ADMIN', 'EXECUTIVE', 'LEGAL_COMPLIANCE'];
+  return rejectionRoles.includes(role);
+}
+
 export function canAccessOpportunity(params) {
   const { rule, verificationLevel, tierCode } = params;
 

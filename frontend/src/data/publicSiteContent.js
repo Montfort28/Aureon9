@@ -1,19 +1,24 @@
 import {
-  BadgeCheck,
-  Briefcase,
-  ChevronRight,
-  Coins,
-  Cpu,
-  FileCheck2,
-  Landmark,
-  Lock,
-  Sparkles,
-  ShieldCheck,
-  Users,
-  Wallet,
-  Plane,
-  LayoutGrid,
-} from 'lucide-react';
+  HiOutlineUserGroup,
+  HiOutlineShieldCheck,
+  HiOutlineCurrencyDollar,
+  HiOutlineGlobe,
+  HiOutlineBriefcase,
+  HiOutlineChip,
+  HiOutlineLightningBolt,
+  HiOutlineAcademicCap,
+  HiOutlineOfficeBuilding,
+  HiOutlineCollection,
+  HiOutlineBadgeCheck,
+  HiOutlineLockClosed,
+  HiOutlineSparkles,
+  HiOutlineCash,
+  HiOutlinePaperAirplane,
+  HiOutlineViewGrid,
+  HiOutlineChevronRight,
+  HiOutlineDocumentText,
+  HiOutlineLibrary,
+} from 'react-icons/hi';
 
 export const publicNav = [
   { label: 'Membership', route: '/membership' },
@@ -149,11 +154,11 @@ export const tierLogic = ['Qualification criteria', 'Revenue thresholds where ap
 export const tierOutputs = ['Access rights', 'Platform privileges', 'Revenue entitlements', 'Reward multipliers', 'Visibility and status ranking'];
 
 export const ecosystemLinks = [
-  { name: 'ODIEBOARD', label: 'Governance', icon: Landmark, text: 'Source governance, organizational control, and enforceable oversight.' },
-  { name: 'AAL', label: 'Sales Engine', icon: Users, text: 'Participant acquisition, channel expansion, and referral-led growth.' },
-  { name: 'ODIEXA', label: 'Marketplace', icon: Briefcase, text: 'Marketplace participation, partner pathways, and controlled opportunities.' },
-  { name: 'AUREX', label: 'Settlement Layer', icon: Wallet, text: 'Wallet creation, reward settlement, commission payouts, and treasury-linked flows.' },
-  { name: 'Opi', label: 'Technology', icon: Cpu, text: 'Platform logic, developer access, and infrastructure participation.' },
+  { name: 'ODIEBOARD', label: 'Governance',      icon: HiOutlineOfficeBuilding, text: 'Source governance, organizational control, and enforceable oversight.' },
+  { name: 'AAL',       label: 'Sales Engine',    icon: HiOutlineUserGroup,      text: 'Participant acquisition, channel expansion, and referral-led growth.' },
+  { name: 'ODIEXA',   label: 'Marketplace',     icon: HiOutlineBriefcase,      text: 'Marketplace participation, partner pathways, and controlled opportunities.' },
+  { name: 'AUREX',    label: 'Settlement Layer', icon: HiOutlineCash,           text: 'Wallet creation, reward settlement, commission payouts, and treasury-linked flows.' },
+  { name: 'Oπ',       label: 'Technology',      icon: HiOutlineChip,           text: 'Platform logic, developer access, and infrastructure participation.' },
 ];
 
 export const verificationLevels = ['Unverified', 'Basic Verified', 'Identity Verified (KYC)', 'Commercial Verified', 'Institutional Verified', 'Capital Verified', 'Governance Approved'];
@@ -172,23 +177,27 @@ export const rewardControls = ['Reward triggers', 'Calculation formulas', 'Distr
 export const aurexIntegration = ['Wallet creation', 'Reward settlement', 'Commission payouts', 'Capital participation flows', 'Fee deductions', 'Treasury oversight'];
 
 export const opportunities = [
-  { title: 'Trade', icon: Briefcase, text: 'Controlled marketplace and trade participation through ODIEXA pathways.' },
-  { title: 'Capital', icon: Landmark, text: 'Capital participant flows with due diligence, approval, and deal access.' },
-  { title: 'Travel', icon: Plane, text: 'Travel and tour pathways listed in the opportunity module scope.' },
-  { title: 'Tech', icon: Cpu, text: 'Technology and infrastructure-linked participation inside the ecosystem.' },
+  { title: 'Trade',   icon: HiOutlineCollection,    text: 'Controlled marketplace and trade participation through ODIEXA pathways.' },
+  { title: 'Capital', icon: HiOutlineCash,           text: 'Capital participant flows with due diligence, approval, and deal access.' },
+  { title: 'Travel',  icon: HiOutlinePaperAirplane,  text: 'Travel and tour pathways listed in the opportunity module scope.' },
+  { title: 'Tech',    icon: HiOutlineChip,           text: 'Technology and infrastructure-linked participation inside the ecosystem.' },
 ];
 
 export const opportunityRules = ['PUBLIC', 'VERIFIED_ONLY', 'CERTIFIED_PLUS', 'EXECUTIVE_PLUS', 'STRATEGIC_PLUS', 'INVITE_ONLY'];
 
 export const publicIcons = {
-  BadgeCheck,
-  ChevronRight,
-  Coins,
-  FileCheck2,
-  LayoutGrid,
-  Lock,
-  ShieldCheck,
-  Sparkles,
-  Users,
-  Wallet,
+  HiOutlineBadgeCheck,
+  HiOutlineChevronRight,
+  HiOutlineCash,
+  HiOutlineDocumentText,
+  HiOutlineViewGrid,
+  HiOutlineLockClosed,
+  HiOutlineShieldCheck,
+  HiOutlineSparkles,
+  HiOutlineUserGroup,
+  HiOutlineLibrary,
+  HiOutlineAcademicCap,
+  HiOutlineLightningBolt,
+  HiOutlineGlobe,
+  HiOutlineCurrencyDollar,
 };

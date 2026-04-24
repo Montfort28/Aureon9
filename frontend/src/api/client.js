@@ -56,7 +56,14 @@ export const documentsAPI = {
   getAll: () => apiClient.get('/api/documents'),
   create: (data) => apiClient.post('/api/documents', data),
   getUploadUrl: (data) => apiClient.post('/api/documents/upload-url', data),
+  uploadBinary: (uploadUrl, file, contentType) =>
+    apiClient.post(uploadUrl, file, {
+      headers: {
+        'Content-Type': contentType || 'application/octet-stream',
+      },
+    }),
   finalizeUpload: (data) => apiClient.post('/api/documents/finalize-upload', data),
+  updateReviewStatus: (id, data) => apiClient.patch(`/api/documents/${id}/review-status`, data),
   delete: (id) => apiClient.delete(`/api/documents/${id}`),
 };
 
@@ -93,7 +100,7 @@ export const auditAPI = {
 };
 
 export const reviewQueueAPI = {
-  getAll: () => apiClient.get('/api/review-queue'),
+  getAll: (params) => apiClient.get('/api/review-queue', { params }),
   approve: (data) => apiClient.post('/api/review-queue/approve', data),
   reject: (data) => apiClient.post('/api/review-queue/reject', data),
   escalate: (data) => apiClient.post('/api/review-queue/escalate', data),

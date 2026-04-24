@@ -67,6 +67,36 @@ enum VerificationStatus {
   SUSPENDED
 }
 
+enum ReviewQueueStatus {
+  PENDING
+  UNDER_REVIEW
+  REQUESTED_MORE_DOCUMENTS
+  ESCALATED
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum ReviewActionType {
+  CREATE_CASE
+  ASSIGN_REVIEWER
+  MOVE_TO_UNDER_REVIEW
+  REQUEST_MORE_DOCUMENTS
+  ESCALATE
+  APPROVE
+  REJECT
+  SUSPEND
+  ADD_NOTE
+}
+
+enum DocumentReviewStatus {
+  RECEIVED
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  REPLACEMENT_REQUIRED
+}
+
 enum WalletTransactionType {
   REWARD_CREDIT
   COMMISSION_CREDIT
@@ -171,11 +201,14 @@ model VerificationRecord {
   memberProfileId      String
   requestedLevel       VerificationLevel
   status               VerificationStatus   @default(PENDING)
+  queueStatus          ReviewQueueStatus    @default(PENDING)
   notes                String?
   reviewedByUserId     String?
+  assignedReviewerId   String?
   submittedAt          DateTime             @default(now())
   reviewedAt           DateTime?
   memberProfile        MemberProfile        @relation(fields: [memberProfileId], references: [id])
+  actions              ReviewAction[]
 
   @@map("verification_records")
 }
@@ -184,12 +217,30 @@ model MemberDocument {
   id                   String               @id @default(cuid())
   memberProfileId      String
   documentType         String
+  verificationPurpose  String?
   fileUrl              String
+  storageKey           String?
   fileName             String
+  mimeType             String?
+  sizeBytes            Int?
+  reviewStatus         DocumentReviewStatus @default(RECEIVED)
   uploadedAt           DateTime             @default(now())
   memberProfile        MemberProfile        @relation(fields: [memberProfileId], references: [id])
 
   @@map("member_documents")
+}
+
+model ReviewAction {
+  id                   String            @id @default(cuid())
+  verificationRecordId String
+  actionType           ReviewActionType
+  actorUserId          String?
+  notes                String?
+  payloadJson          Json?
+  createdAt            DateTime          @default(now())
+  verificationRecord   VerificationRecord @relation(fields: [verificationRecordId], references: [id])
+
+  @@map("review_actions")
 }
 
 model AurexWallet {

@@ -5,11 +5,12 @@ import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { authContent, pageCopy, participantClassOptions } from '../../data/publicSiteContent';
-import { authAPI, setAuthToken } from '../../api/client';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function AuthPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { login, register } = useAuth();
   const route = location.pathname;
   const content = authContent[route];
   const copy = pageCopy[route];
@@ -34,22 +35,30 @@ export default function AuthPage() {
       setStatus({ loading: true, error: '', success: '' });
 
       if (route === '/register') {
-        const { data } = await authAPI.register({
+        const result = await register({
           name: form.name,
           participantClassCode: form.participantClassCode,
           email: form.email,
           password: form.password,
         });
-        setAuthToken(data.token);
+        if (!result.success) {
+          throw new Error(result.error);
+        }
         setStatus({ loading: false, error: '', success: 'Registration completed. Redirecting to dashboard access.' });
-        navigate('/login');
+        navigate('/dashboard/member');
         return;
       }
 
-      const { data } = await authAPI.login(form.email, form.password);
-      setAuthToken(data.token);
-      setStatus({ loading: false, error: '', success: 'Login successful. Redirecting to the member dashboard.' });
-      navigate('/dashboard/member');
+      const result = await login(form.email, form.password);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      const adminRoles = ['SUPER_ADMIN', 'EXECUTIVE', 'LEGAL_COMPLIANCE', 'QUALIFICATIONS', 'CUSTOMER_SUCCESS', 'FINANCE_TREASURY'];
+      const isAdmin = adminRoles.includes(result.user?.role);
+
+      setStatus({ loading: false, error: '', success: `Login successful. Redirecting to ${isAdmin ? 'admin' : 'member'} dashboard.` });
+      navigate(isAdmin ? '/dashboard/admin-review' : '/dashboard/member');
     } catch (error) {
       const message = error.response?.data?.error || 'Unable to complete authentication';
       setStatus({ loading: false, error: message, success: '' });

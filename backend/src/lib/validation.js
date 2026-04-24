@@ -45,6 +45,29 @@ export function validateVerificationLevel(level) {
   return validLevels.includes(level);
 }
 
+export function validateVerificationStatus(status) {
+  const validStatuses = ['PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'SUSPENDED'];
+  return validStatuses.includes(status);
+}
+
+export function validateReviewQueueStatus(status) {
+  const validStatuses = [
+    'PENDING',
+    'UNDER_REVIEW',
+    'REQUESTED_MORE_DOCUMENTS',
+    'ESCALATED',
+    'APPROVED',
+    'REJECTED',
+    'SUSPENDED',
+  ];
+  return validStatuses.includes(status);
+}
+
+export function validateDocumentReviewStatus(status) {
+  const validStatuses = ['RECEIVED', 'UNDER_REVIEW', 'ACCEPTED', 'REJECTED', 'REPLACEMENT_REQUIRED'];
+  return validStatuses.includes(status);
+}
+
 export function validateOpportunityType(type) {
   const validTypes = ['INVESTMENT', 'TRADE', 'TOURISM', 'PARTNERSHIP', 'CAREER', 'MARKETPLACE'];
   return validTypes.includes(type);
