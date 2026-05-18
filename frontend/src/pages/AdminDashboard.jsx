@@ -20,8 +20,9 @@ import AdminNotificationCenter from '../components/admin/tabs/AdminNotificationC
 import AdminRoleMatrix from '../components/admin/tabs/AdminRoleMatrix';
 import AdminGovernanceSettings from '../components/admin/tabs/AdminGovernanceSettings';
 import AdminRiskMonitoring from '../components/admin/tabs/AdminRiskMonitoring';
+import AdminWebhooks from '../components/admin/tabs/AdminWebhooks';
 
-// Navigation configuration - matching AdminReviewModule exactly
+// Navigation configuration - cleaned up and organized
 const sidebarSections = [
   {
     title: 'HOME',
@@ -66,11 +67,17 @@ const sidebarSections = [
     items: [
       { id: 'notifications', label: 'Notification Center', icon: HiBell, description: 'Email & channels' }
     ]
+  },
+  {
+    title: 'INTEGRATIONS',
+    items: [
+      { id: 'webhooks', label: 'Webhook Receivers', icon: HiLightningBolt, description: 'External integrations' }
+    ]
   }
 ];
 
 const roleAccess = {
-  SUPER_ADMIN: ['overview', 'review-queue', 'detailed-case', 'documents-upload', 'members', 'revenue', 'distributions', 'rewards', 'revenue-chart', 'risk-monitor', 'activity-logs', 'role-matrix', 'governance', 'notifications'],
+  SUPER_ADMIN: ['overview', 'review-queue', 'detailed-case', 'documents-upload', 'members', 'revenue', 'distributions', 'rewards', 'revenue-chart', 'risk-monitor', 'activity-logs', 'role-matrix', 'governance', 'notifications', 'webhooks'],
   EXECUTIVE: ['overview', 'review-queue', 'detailed-case', 'members', 'revenue', 'distributions', 'rewards', 'revenue-chart', 'risk-monitor', 'activity-logs', 'role-matrix', 'governance', 'notifications'],
   LEGAL_COMPLIANCE: ['overview', 'review-queue', 'detailed-case', 'documents-upload', 'members', 'risk-monitor', 'activity-logs', 'role-matrix'],
   QUALIFICATIONS: ['overview', 'review-queue', 'detailed-case', 'members', 'role-matrix'],
@@ -157,6 +164,8 @@ export default function AdminDashboard() {
         return <AdminGovernanceSettings />;
       case 'risk-monitor':
         return <AdminRiskMonitoring />;
+      case 'webhooks':
+        return <AdminWebhooks />;
       default:
         return <AdminOverview />;
     }

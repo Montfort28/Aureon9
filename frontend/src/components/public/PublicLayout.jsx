@@ -42,7 +42,7 @@ export default function PublicLayout() {
         <div className="absolute bottom-[-8rem] left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-[rgba(212,175,55,0.10)] blur-3xl" />
       </div>
 
-      <header className="sticky top-0 z-30 border-b border-white/50 bg-white/80 backdrop-blur-xl">
+      <header className="fixed top-0 left-0 right-0 z-30 border-b border-white/50 bg-white/95 backdrop-blur-xl shadow-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-2 sm:px-4 sm:py-2.5 lg:px-8 lg:pr-4">
           <NavLink to="/" className="flex shrink-0 items-center gap-2 text-left -ml-3 sm:-ml-4 sm:gap-3 lg:-ml-8">
             <img src={brandLogo} alt="AUREON9 logo" className="h-12 w-12 object-contain sm:h-14 sm:w-14 lg:h-16 lg:w-16" />
@@ -82,7 +82,7 @@ export default function PublicLayout() {
         </div>
 
         {menuOpen && (
-          <div className="absolute left-0 right-0 top-full border-t border-slate-200 bg-white xl:hidden">
+          <div className="absolute left-0 right-0 top-full border-t border-slate-200 bg-white shadow-lg xl:hidden z-20">
             <div className="mx-auto flex max-w-7xl flex-col gap-2 px-3 py-4 sm:px-4">
               {publicNav.map((item) => (
                 <NavButton key={item.route} label={item.label} to={item.route} fullWidth />
@@ -107,7 +107,7 @@ export default function PublicLayout() {
         )}
       </header>
 
-      <main className="relative z-10">
+      <main className="relative z-10 pt-[4.5rem] sm:pt-[5rem] lg:pt-[5.5rem]">
         <Outlet />
       </main>
 
@@ -143,7 +143,7 @@ export default function PublicLayout() {
               <NavLink className="block transition hover:text-white" to="/login">Login</NavLink>
               <NavLink className="block transition hover:text-white" to="/register">Register</NavLink>
               <NavLink className="block transition hover:text-white" to="/dashboard/member">Member Dashboard</NavLink>
-              <NavLink className="block transition hover:text-white" to="/dashboard/admin-review">Admin Review</NavLink>
+              <NavLink className="block transition hover:text-white" to="/dashboard/admin/overview">Admin Dashboard</NavLink>
               <NavLink className="block transition hover:text-white" to="/dashboard/admin-settings">Admin Settings</NavLink>
             </div>
           </div>

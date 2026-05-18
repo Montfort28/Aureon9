@@ -65,21 +65,21 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-r from-slate-900/95 via-slate-900/80 to-transparent" />
 
         {/* Content overlay */}
-        <div className="relative mx-auto flex h-full max-w-7xl items-start justify-between px-6 pt-16 lg:px-8 lg:pt-20">
+        <div className="relative mx-auto flex h-full max-w-7xl items-start justify-between px-4 pt-12 sm:px-6 lg:px-8 lg:pt-20">
           {/* Left content */}
           <div className="flex max-w-xl flex-col justify-center">
-            <Badge className="w-fit rounded-full border border-white/30 bg-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white backdrop-blur-sm">
+            <Badge className="w-fit rounded-full border border-white/30 bg-white/10 px-3 py-1 text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.22em] text-white backdrop-blur-sm">
               Enterprise Membership Platform
             </Badge>
-            <h1 className="mt-6 font-heading text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+            <h1 className="mt-4 sm:mt-6 font-heading text-2xl sm:text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl leading-tight">
               AUREON9 — Membership, Identity &amp; Rewards Infrastructure
             </h1>
-            <p className="mt-6 text-lg leading-8 text-white/90">
+            <p className="mt-4 sm:mt-6 text-base sm:text-lg leading-7 sm:leading-8 text-white/90">
               A governed platform for participant classification, identity verification, tier progression, AUREX rewards, and controlled opportunity access — powered by ODIEBOARD.
             </p>
-            <div className="mt-8 flex gap-3">
+            <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
               <Button asChild className="whitespace-nowrap rounded-full bg-slate-800 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700 sm:px-8">
-                <NavLink className="inline-flex items-center gap-2" to="/register">
+                <NavLink className="inline-flex items-center justify-center gap-2" to="/register">
                   Become a Member <HiArrowRight className="h-5 w-5" />
                 </NavLink>
               </Button>

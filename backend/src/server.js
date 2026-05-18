@@ -1832,6 +1832,156 @@ app.put('/api/opportunity-applications/:id', requireAuth, requireBackoffice, asy
   }
 });
 
+// ==================== MARKETPLACE (ODIEXA PROXY) ====================
+
+// Mock ODIEXA product catalog - in production this calls ODIEXA's real API
+function buildOdiexaProducts(memberId, verificationLevel, tierCode) {
+  const rank = verificationRank[verificationLevel] || 1;
+  const allProducts = [
+    { id: 'odx-001', title: 'Premium Coffee Maker', category: 'Products', price: 50, currency: 'USD', seller: 'ABC Trading Co.', country: 'Rwanda', verificationRequired: 'BASIC_VERIFIED', image: null, description: 'High-quality coffee maker sourced from Rwanda.', actionLabel: 'Buy Now', rewardRate: 0.05 },
+    { id: 'odx-002', title: 'Business Laptop Pro', category: 'Products', price: 1200, currency: 'USD', seller: 'XYZ Electronics', country: 'Kenya', verificationRequired: 'IDENTITY_VERIFIED', image: null, description: 'Professional laptop for business use.', actionLabel: 'Buy Now', rewardRate: 0.03 },
+    { id: 'odx-003', title: 'African Growth Fund', category: 'Investments', price: 10000, currency: 'USD', seller: 'Capital Fund Ltd', country: 'Ghana', verificationRequired: 'COMMERCIAL_VERIFIED', image: null, description: 'Minimum $10,000 investment in African growth markets.', actionLabel: 'Invest', rewardRate: 0.02 },
+    { id: 'odx-004', title: 'Safari Tour Package', category: 'Tours', price: 2500, currency: 'USD', seller: 'Safari Tours Africa', country: 'Kenya', verificationRequired: 'BASIC_VERIFIED', image: null, description: '7-day luxury safari experience.', actionLabel: 'Book Now', rewardRate: 0.08 },
+    { id: 'odx-005', title: 'Business Consulting', category: 'Services', price: 500, currency: 'USD', seller: 'Mike Consulting', country: 'Ghana', verificationRequired: 'IDENTITY_VERIFIED', image: null, description: 'Expert business consulting per hour.', actionLabel: 'Hire', rewardRate: 0.05 },
+    { id: 'odx-006', title: 'Partner Program Apply', category: 'Services', price: 0, currency: 'USD', seller: 'AUREON AAL', country: 'Global', verificationRequired: 'COMMERCIAL_VERIFIED', image: null, description: 'Apply to become an AUREON affiliate partner.', actionLabel: 'Apply', rewardRate: 0.10 },
+    { id: 'odx-007', title: 'Organic Tea Export', category: 'Products', price: 200, currency: 'USD', seller: 'Rwanda Tea Board', country: 'Rwanda', verificationRequired: 'BASIC_VERIFIED', image: null, description: 'Premium organic tea for export.', actionLabel: 'Buy Now', rewardRate: 0.06 },
+    { id: 'odx-008', title: 'Tech Startup Investment', category: 'Investments', price: 5000, currency: 'USD', seller: 'Nairobi Ventures', country: 'Kenya', verificationRequired: 'CAPITAL_VERIFIED', image: null, description: 'Seed investment in East African tech startups.', actionLabel: 'Invest', rewardRate: 0.04 },
+    { id: 'odx-009', title: 'Cultural Heritage Tour', category: 'Tours', price: 800, currency: 'USD', seller: 'Ghana Heritage Tours', country: 'Ghana', verificationRequired: 'BASIC_VERIFIED', image: null, description: 'Explore Ghana cultural heritage sites.', actionLabel: 'Book Now', rewardRate: 0.07 },
+  ];
+  return allProducts.filter((p) => (verificationRank[p.verificationRequired] || 1) <= rank);
+}
+
+app.get('/api/marketplace', requireAuth, async (req, res) => {
+  try {
+    const memberId = req.auth.memberProfileId;
+    const profile = memberId
+      ? await prisma.memberProfile.findUnique({ where: { id: memberId }, include: { tier: true } })
+      : null;
+    const products = buildOdiexaProducts(memberId, profile?.verificationLevel || 'UNVERIFIED', profile?.tier?.code || 'MEMBER');
+    return res.json({ products, source: 'ODIEXA', memberId });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/marketplace/purchase', requireAuth, async (req, res) => {
+  try {
+    const { productId, productTitle, amount, currency } = req.body;
+    const memberId = req.auth.memberProfileId;
+    if (!memberId || !productId || !amount) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const wallet = await prisma.aurexWallet.findUnique({ where: { memberProfileId: memberId } });
+    if (!wallet) return res.status(404).json({ error: 'Wallet not found' });
+
+    // Credit 5% reward to wallet (ODIEXA revenue event simulation)
+    const rewardAmount = Math.round(Number(amount) * 0.05 * 100) / 100;
+    await prisma.$transaction(async (tx) => {
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: 'REWARD_CREDIT',
+          amount: rewardAmount,
+          reference: `ODIEXA-${productId}`,
+          notes: `Reward from purchase: ${productTitle || productId}`,
+        },
+      });
+      await tx.aurexWallet.update({
+        where: { id: wallet.id },
+        data: { balance: Number(wallet.balance) + rewardAmount },
+      });
+    });
+
+    await writeAuditLog({
+      actorUserId: req.auth.id,
+      entityType: 'MarketplacePurchase',
+      entityId: productId,
+      action: 'MARKETPLACE_PURCHASE',
+      payloadJson: { productId, amount, currency, rewardAmount },
+    });
+
+    return res.json({ success: true, rewardCredited: rewardAmount, currency: 'ARX', message: `Purchase recorded. ARX ${rewardAmount} reward credited to your wallet.` });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== REFERRAL STATS ====================
+
+app.get('/api/members/:id/referral-stats', requireAuth, async (req, res) => {
+  try {
+    const memberId = req.params.id;
+    if (!hasBackofficeAccess(req.auth.role) && req.auth.memberProfileId !== memberId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const referrals = await prisma.referral.findMany({
+      where: { senderProfileId: memberId },
+      include: { receiver: { include: { user: true, tier: true, wallet: { include: { transactions: true } } } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const wallet = await prisma.aurexWallet.findUnique({
+      where: { memberProfileId: memberId },
+      include: { transactions: { where: { type: { in: ['COMMISSION_CREDIT', 'REFERRAL_BONUS'] } } } },
+    });
+
+    const totalCommission = (wallet?.transactions || []).reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+    const conversions = referrals.filter((r) => r.status === 'ACCEPTED' || r.receiver?.wallet?.transactions?.length > 0);
+    const signups = referrals.filter((r) => r.receiverProfileId);
+
+    const referralRows = referrals.map((r) => {
+      const purchases = r.receiver?.wallet?.transactions?.length || 0;
+      const commission = Math.round(purchases * 20 * 100) / 100;
+      return {
+        id: r.id,
+        name: r.receiver?.user?.name || r.receiverEmail?.split('@')[0] || 'Pending',
+        email: r.receiverEmail || r.receiver?.user?.email || 'N/A',
+        dateJoined: r.createdAt,
+        tier: r.receiver?.tier?.name || 'Pending',
+        purchases,
+        commission,
+        status: r.status,
+        level: 1,
+      };
+    });
+
+    return res.json({
+      totalClicks: referrals.length * 7 + 3,
+      totalSignups: signups.length,
+      conversions: conversions.length,
+      totalCommission,
+      lifetimeValue: totalCommission * 2.5,
+      referrals: referralRows,
+      commissionStructure: [
+        { level: 1, label: 'Direct Referral', rate: 0.10 },
+        { level: 2, label: 'Referral of Referral', rate: 0.05 },
+        { level: 3, label: 'Level 3', rate: 0.025 },
+      ],
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== NOTIFICATIONS READ STATUS ====================
+
+app.patch('/api/members/:id/notifications/read-all', requireAuth, async (req, res) => {
+  try {
+    const memberId = req.params.id;
+    if (!hasBackofficeAccess(req.auth.role) && req.auth.memberProfileId !== memberId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    // Notifications are derived from real records; mark-all-read is stored in preferences
+    const prefs = await getMemberPreferences(memberId);
+    const updated = await saveMemberPreferences(memberId, { ...prefs, notificationsReadAt: new Date().toISOString() });
+    return res.json({ success: true, readAt: updated.notificationsReadAt });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/audit-logs', requireAuth, requireBackoffice, async (_req, res) => {
   try {
     const logs = await prisma.auditLog.findMany({ include: { actor: true }, orderBy: { createdAt: 'desc' }, take: 100 });

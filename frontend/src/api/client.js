@@ -52,6 +52,7 @@ export const membersAPI = {
   getPerformance: (id) => apiClient.get(`/api/members/${id}/performance`),
   getUpgradePath: (id) => apiClient.get(`/api/members/${id}/upgrade-path`),
   getNotifications: (id) => apiClient.get(`/api/members/${id}/notifications`),
+  markAllNotificationsRead: (id) => apiClient.patch(`/api/members/${id}/notifications/read-all`, {}),
 };
 
 // Verification Records API
@@ -90,6 +91,13 @@ export const referralsAPI = {
   getAll: () => apiClient.get('/api/referrals'),
   getById: (id) => apiClient.get(`/api/referrals/${id}`),
   create: (data) => apiClient.post('/api/referrals', data),
+  getStats: (memberId) => apiClient.get(`/api/members/${memberId}/referral-stats`),
+};
+
+// Marketplace API (ODIEXA proxy)
+export const marketplaceAPI = {
+  getProducts: () => apiClient.get('/api/marketplace'),
+  purchase: (data) => apiClient.post('/api/marketplace/purchase', data),
 };
 
 // Opportunities API

@@ -7,7 +7,6 @@ import {
   HiBell,
   HiCheckCircle,
   HiCog,
-  HiCurrencyDollar,
   HiDocumentText,
   HiMenu,
   HiSearch,
@@ -28,13 +27,13 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Progress } from '../components/ui/Progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/Table';
-import { Textarea } from '../components/ui/Textarea';
 import { Separator } from '../components/ui/Separator';
 import { Avatar, AvatarFallback } from '../components/ui/Avatar';
 import { useAuth } from '../hooks/useAuth';
 import { MyApplications } from './MyApplications';
 import {
   documentsAPI,
+  marketplaceAPI,
   membersAPI,
   opportunitiesAPI,
   opportunityApplicationsAPI,
@@ -157,8 +156,7 @@ export default function MemberDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [applyingTo, setApplyingTo] = useState(null);
   const [memberData, setMemberData] = useState(null);
   const [walletData, setWalletData] = useState(null);
   const [earningsData, setEarningsData] = useState({ total: 0, bySource: [], latestTransactions: [] });
@@ -171,6 +169,8 @@ export default function MemberDashboard() {
   const [upgradePath, setUpgradePath] = useState(null);
   const [tiers, setTiers] = useState([]);
   const [capabilities, setCapabilities] = useState(defaultCapabilities);
+  const [marketplaceProducts, setMarketplaceProducts] = useState([]);
+  const [referralStats, setReferralStats] = useState(null);
   const [settingsForm, setSettingsForm] = useState({
     displayName: '',
     country: '',
@@ -201,6 +201,20 @@ export default function MemberDashboard() {
     return navItems.filter((item) => capabilities?.screens?.[item.id] !== false);
   }, [capabilities]);
   const pageTitle = visibleNavItems.find((item) => item.id === activeNav)?.label || 'Dashboard';
+  const pendingActions = (upgradePath?.checklist || []).filter((item) => !item.met);
+
+  async function handleApplyOpportunity(opportunityId) {
+    try {
+      setApplyingTo(opportunityId);
+      await opportunityApplicationsAPI.create({ opportunityId });
+      toast.success('Application submitted successfully!');
+      window.location.reload();
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message);
+    } finally {
+      setApplyingTo(null);
+    }
+  }
 
   async function handleLogout() {
     try {
@@ -217,7 +231,6 @@ export default function MemberDashboard() {
     }
 
     setLoading(true);
-    setError('');
     try {
       const [
         memberRes,
@@ -233,6 +246,8 @@ export default function MemberDashboard() {
         tiersRes,
         capabilitiesRes,
         preferencesRes,
+        marketplaceRes,
+        referralStatsRes,
       ] = await Promise.all([
         membersAPI.getById(profileId),
         walletsAPI.getWallet(profileId),
@@ -247,6 +262,8 @@ export default function MemberDashboard() {
         referenceAPI.getTiers(),
         membersAPI.getCapabilities(profileId),
         membersAPI.getPreferences(profileId),
+        marketplaceAPI.getProducts().catch(() => ({ data: { products: [] } })),
+        referralsAPI.getStats(profileId).catch(() => ({ data: null })),
       ]);
 
       const member = memberRes.data;
@@ -268,6 +285,8 @@ export default function MemberDashboard() {
         linkedGoogle: false,
         linkedLinkedIn: false,
       });
+      setMarketplaceProducts(marketplaceRes.data?.products || []);
+      setReferralStats(referralStatsRes.data || null);
       setSettingsForm({
         displayName: member.displayName || '',
         country: member.country || '',
@@ -308,8 +327,6 @@ export default function MemberDashboard() {
     const found = tiers.find((tier) => tier.code === nextCode);
     return found?.name || formatEnum(nextCode);
   }, [upgradePath?.nextTier, tiers]);
-  const marketplaceItems = opportunities.filter((item) => item.type === 'MARKETPLACE');
-  const pendingActions = (upgradePath?.checklist || []).filter((item) => !item.met);
 
   const stats = [
     {
@@ -602,7 +619,8 @@ export default function MemberDashboard() {
                 verificationData={verificationData}
                 referralData={referralData}
                 opportunities={opportunities}
-                marketplaceItems={marketplaceItems}
+                marketplaceProducts={marketplaceProducts}
+                referralStats={referralStats}
                 documents={documents}
                 notifications={notifications}
                 performance={performance}
@@ -626,10 +644,14 @@ export default function MemberDashboard() {
                 handleDocumentUpload={handleDocumentUpload}
                 handleSettingsSave={handleSettingsSave}
                 handlePreferenceSave={handlePreferenceSave}
+                handleApplyOpportunity={handleApplyOpportunity}
                 copyReferralLink={copyReferralLink}
                 referralCode={referralCode}
                 verificationProgress={verificationProgress}
                 nextTierName={nextTierName}
+                auth={auth}
+                loadDashboard={loadDashboard}
+                applyingTo={applyingTo}
               />
             )}
           </div>
@@ -646,7 +668,8 @@ function PanelSection({
   verificationData,
   referralData,
   opportunities,
-  marketplaceItems,
+  marketplaceProducts,
+  referralStats,
   documents,
   notifications,
   performance,
@@ -670,10 +693,14 @@ function PanelSection({
   handleDocumentUpload,
   handleSettingsSave,
   handlePreferenceSave,
+  handleApplyOpportunity,
   copyReferralLink,
   referralCode,
   verificationProgress,
   nextTierName,
+  auth,
+  loadDashboard,
+  applyingTo,
 }) {
   if (capabilities?.screens?.[activeNav] === false) {
     return (
@@ -688,125 +715,37 @@ function PanelSection({
 
   if (activeNav === 'profile') {
     return (
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle>Profile & Identity</CardTitle>
-          <CardDescription>Primary identity, contact, and organizational profile records.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <Info title="Display Name" value={memberData?.displayName || 'Not set'} />
-          <Info title="Email" value={memberData?.user?.email || 'N/A'} />
-          <Info title="Phone" value={memberData?.phone || 'Not set'} />
-          <Info title="Country" value={memberData?.country || 'Not set'} />
-          <Info title="Business Name" value={memberData?.businessName || 'Not set'} />
-          <Info title="Participant Class" value={formatEnum(memberData?.participantClass?.code || 'GENERAL_MEMBER')} />
-        </CardContent>
-      </Card>
+      <ProfilePanel
+        memberData={memberData}
+        settingsForm={settingsForm}
+        setSettingsForm={setSettingsForm}
+        preferenceState={preferenceState}
+        setPreferenceState={setPreferenceState}
+        saving={saving}
+        handleSettingsSave={handleSettingsSave}
+        handlePreferenceSave={handlePreferenceSave}
+        capabilities={capabilities}
+        documents={documents}
+      />
     );
   }
 
   if (activeNav === 'verification') {
     return (
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle>Verification Center</CardTitle>
-          <CardDescription>Level progression, case submissions, and review outcomes.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
-          <div className="space-y-3">
-            {verificationLevels.map((level, index) => {
-              const isReached = index <= verificationLevels.indexOf(memberData?.verificationLevel || 'UNVERIFIED');
-              return (
-                <div key={level} className="rounded-2xl border border-slate-200 p-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="font-medium">{formatEnum(level)}</p>
-                    <StatusBadge value={isReached ? 'APPROVED' : 'PENDING'} />
-                  </div>
-                  <Progress value={isReached ? 100 : 0} className="h-2" />
-                </div>
-              );
-            })}
-          </div>
-          <div className="space-y-4">
-            <Card className="rounded-2xl border-slate-200">
-              <CardContent className="grid gap-4 p-5">
-                <h3 className="font-semibold">Submit Verification Upgrade</h3>
-                <select
-                  value={verificationForm.requestedLevel}
-                  onChange={(event) => setVerificationForm((current) => ({ ...current, requestedLevel: event.target.value }))}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900"
-                >
-                  {verificationLevels.map((level) => (
-                    <option key={level} value={level}>{formatEnum(level)}</option>
-                  ))}
-                </select>
-                <Textarea
-                  className="min-h-[120px] rounded-2xl border-slate-200"
-                  placeholder="Supporting notes for reviewers..."
-                  value={verificationForm.notes}
-                  onChange={(event) => setVerificationForm((current) => ({ ...current, notes: event.target.value }))}
-                />
-                <Button onClick={handleVerificationRequest} disabled={saving || !capabilities?.actions?.canRequestUpgrade}>
-                  {capabilities?.actions?.canRequestUpgrade ? 'Submit Request' : 'Verification Upgrade Locked'}
-                </Button>
-              </CardContent>
-            </Card>
-            <Card className="rounded-2xl border-slate-200">
-              <CardContent className="p-5">
-                <h3 className="font-semibold">Submitted Cases</h3>
-                <div className="mt-4 rounded-2xl border border-slate-200">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Requested Level</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Queue</TableHead>
-                        <TableHead>Submitted</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {verificationData.length ? (
-                        verificationData.map((record) => (
-                          <TableRow key={record.id}>
-                            <TableCell>{formatEnum(record.requestedLevel)}</TableCell>
-                            <TableCell><StatusBadge value={record.status} /></TableCell>
-                            <TableCell><StatusBadge value={record.queueStatus || record.status} /></TableCell>
-                            <TableCell>{formatDate(record.submittedAt)}</TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-sm text-slate-500">No verification cases submitted yet.</TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl border-slate-200">
-              <CardContent className="p-5">
-                <h3 className="font-semibold">Reviewer Messages</h3>
-                <div className="mt-3 space-y-3">
-                  {verificationData.filter((item) => item.notes).slice(0, 6).map((record) => (
-                    <div key={record.id} className="rounded-2xl bg-slate-50 px-4 py-3 text-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium">{formatEnum(record.queueStatus || record.status)}</span>
-                        <span className="text-xs text-slate-500">{formatDate(record.submittedAt)}</span>
-                      </div>
-                      <p className="mt-2 text-slate-600">{record.notes}</p>
-                    </div>
-                  ))}
-                  {!verificationData.some((item) => item.notes) && (
-                    <p className="text-sm text-slate-500">No reviewer messages yet.</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
+      <VerificationPanel
+        memberData={memberData}
+        verificationData={verificationData}
+        documents={documents}
+        documentForm={documentForm}
+        setDocumentForm={setDocumentForm}
+        verificationForm={verificationForm}
+        setVerificationForm={setVerificationForm}
+        saving={saving}
+        handleVerificationRequest={handleVerificationRequest}
+        handleDocumentUpload={handleDocumentUpload}
+        capabilities={capabilities}
+        verificationProgress={verificationProgress}
+      />
     );
   }
 
@@ -951,129 +890,32 @@ function PanelSection({
 
   if (activeNav === 'marketplace') {
     return (
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle>Marketplace (ODIEXA)</CardTitle>
-          <CardDescription>Verified marketplace listings available at your current access level.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {(marketplaceItems.length ? marketplaceItems : opportunities).length ? (
-            (marketplaceItems.length ? marketplaceItems : opportunities).map((item) => (
-              <Card key={item.id} className="rounded-2xl border-slate-200">
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold">{item.title}</p>
-                    <StatusBadge value={item.accessRule} />
-                  </div>
-                  <p className="mt-3 text-sm text-slate-500">{item.description || 'No description provided.'}</p>
-                  <div className="mt-4 text-sm text-slate-600">
-                    <div>Type: {formatEnum(item.type)}</div>
-                    <div>Country: {item.country || 'Global'}</div>
-                  </div>
-                  <Button className="mt-4 w-full rounded-2xl" disabled={!capabilities?.actions?.canBuyInvest}>
-                    Buy / Invest
-                  </Button>
-                </CardContent>
-              </Card>
-            ))
-          ) : (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
-              No marketplace listings currently available.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <MarketplacePanel
+        products={marketplaceProducts}
+        capabilities={capabilities}
+        auth={auth}
+        loadDashboard={loadDashboard}
+      />
     );
   }
 
   if (activeNav === 'referrals') {
     return (
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle>Referral System (AAL)</CardTitle>
-          <CardDescription>Create referrals, copy your referral link, and track conversion records.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 p-5">
-            <p className="text-sm text-slate-500">Referral code</p>
-            <p className="mt-2 text-2xl font-semibold">{referralCode}</p>
-            <Button variant="outline" className="mt-3 rounded-2xl border-slate-200" onClick={copyReferralLink}>Copy Referral Link</Button>
-          </div>
-          <div className="grid gap-4 md:grid-cols-[1fr_0.8fr]">
-            <Card className="rounded-2xl border-slate-200">
-              <CardContent className="p-5 grid gap-3">
-                <h3 className="font-semibold">Create Referral</h3>
-                <Input
-                  placeholder="Receiver email"
-                  value={referralForm.receiverEmail}
-                  onChange={(event) => setReferralForm((current) => ({ ...current, receiverEmail: event.target.value }))}
-                />
-                <Input
-                  placeholder="Campaign code (optional)"
-                  value={referralForm.campaignCode}
-                  onChange={(event) => setReferralForm((current) => ({ ...current, campaignCode: event.target.value }))}
-                />
-                <Button onClick={handleReferralCreate} disabled={saving}>Create Referral</Button>
-              </CardContent>
-            </Card>
-            <Card className="rounded-2xl border-slate-200">
-              <CardContent className="p-5 space-y-3">
-                <h3 className="font-semibold">Referral Metrics</h3>
-                <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm">Total: {referralData.length}</div>
-                <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm">Pending: {referralData.filter((item) => item.status === 'PENDING').length}</div>
-                <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm">Accepted: {referralData.filter((item) => item.status === 'ACCEPTED').length}</div>
-              </CardContent>
-            </Card>
-          </div>
-          <div className="rounded-2xl border border-slate-200">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Campaign</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {referralData.length ? (
-                  referralData.map((referral) => (
-                    <TableRow key={referral.id}>
-                      <TableCell>{referral.receiverEmail || referral.receiver?.user?.email || 'N/A'}</TableCell>
-                      <TableCell>{referral.campaignCode || 'N/A'}</TableCell>
-                      <TableCell><StatusBadge value={referral.status} /></TableCell>
-                      <TableCell>{formatDate(referral.createdAt)}</TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-sm text-slate-500">No referral records found.</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      <ReferralPanel
+        referralStats={referralStats}
+        referralData={referralData}
+        referralCode={referralCode}
+        referralForm={referralForm}
+        setReferralForm={setReferralForm}
+        saving={saving}
+        handleReferralCreate={handleReferralCreate}
+        copyReferralLink={copyReferralLink}
+        memberData={memberData}
+      />
     );
   }
 
   if (activeNav === 'opportunities') {
-    const [applyingTo, setApplyingTo] = useState(null);
-
-    async function handleApplyOpportunity(opportunityId) {
-      try {
-        setApplyingTo(opportunityId);
-        await opportunityApplicationsAPI.create({ opportunityId });
-        toast.success('Application submitted successfully!');
-        window.location.reload();
-      } catch (err) {
-        toast.error(err.response?.data?.error || err.message);
-      } finally {
-        setApplyingTo(null);
-      }
-    }
-
     return (
       <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader>
@@ -1192,32 +1034,11 @@ function PanelSection({
 
   if (activeNav === 'notifications') {
     return (
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle>Notifications & Alerts</CardTitle>
-          <CardDescription>Recent verification, document, wallet, and referral events.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {notifications.length ? (
-            notifications.map((item) => (
-              <div key={item.id} className="rounded-2xl border border-slate-200 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{item.title}</p>
-                    <p className="text-sm text-slate-500">{item.message}</p>
-                  </div>
-                  <StatusBadge value={item.status} />
-                </div>
-                <p className="mt-2 text-xs text-slate-500">{formatDate(item.createdAt)}</p>
-              </div>
-            ))
-          ) : (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
-              No notifications yet.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <NotificationsPanel
+        notifications={notifications}
+        auth={auth}
+        loadDashboard={loadDashboard}
+      />
     );
   }
 
@@ -1512,4 +1333,250 @@ function MetricBar({ title, value }) {
 function sumSource(earningsData, source) {
   const item = (earningsData?.bySource || []).find((entry) => entry.source === source);
   return Number(item?.amount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function ProfilePanel({
+  memberData,
+  settingsForm,
+  setSettingsForm,
+  preferenceState,
+  setPreferenceState,
+  saving,
+  handleSettingsSave,
+  handlePreferenceSave,
+  documents,
+}) {
+  return (
+    <Card className="rounded-2xl border-slate-200 shadow-sm">
+      <CardHeader>
+        <CardTitle>Profile & Identity</CardTitle>
+        <CardDescription>Manage your profile information, preferences, and security settings.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
+        <div className="grid gap-3">
+          <Input
+            placeholder="Display name"
+            value={settingsForm.displayName}
+            onChange={(event) => setSettingsForm((current) => ({ ...current, displayName: event.target.value }))}
+          />
+          <Input
+            placeholder="Country"
+            value={settingsForm.country}
+            onChange={(event) => setSettingsForm((current) => ({ ...current, country: event.target.value }))}
+          />
+          <Input
+            placeholder="Phone"
+            value={settingsForm.phone}
+            onChange={(event) => setSettingsForm((current) => ({ ...current, phone: event.target.value }))}
+          />
+          <Input
+            placeholder="Business name"
+            value={settingsForm.businessName}
+            onChange={(event) => setSettingsForm((current) => ({ ...current, businessName: event.target.value }))}
+          />
+          <Button onClick={handleSettingsSave} disabled={saving}>Save Profile</Button>
+
+          <div className="rounded-2xl border border-slate-200 p-4">
+            <p className="font-semibold">Notification Preferences</p>
+            <label className="mt-3 flex items-center justify-between text-sm">
+              <span>Email notifications</span>
+              <input
+                type="checkbox"
+                checked={preferenceState.emailNotifications}
+                onChange={(event) => setPreferenceState((current) => ({ ...current, emailNotifications: event.target.checked }))}
+              />
+            </label>
+            <Button variant="outline" className="mt-3 rounded-2xl border-slate-200" onClick={handlePreferenceSave} disabled={saving}>
+              Save Preferences
+            </Button>
+          </div>
+        </div>
+        <div className="space-y-3">
+          {[
+            `Tier: ${memberData?.tier?.name || 'Member'}`,
+            `Verification: ${formatEnum(memberData?.verificationLevel || 'UNVERIFIED')}`,
+            `Documents on file: ${documents.length}`,
+          ].map((item) => (
+            <div key={item} className="flex items-start gap-3 rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">
+              <HiExclamation className="mt-0.5 h-4 w-4" />
+              <span>{item}</span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function VerificationPanel({
+  documentForm,
+  setDocumentForm,
+  verificationForm,
+  setVerificationForm,
+  saving,
+  handleVerificationRequest,
+  handleDocumentUpload,
+  capabilities,
+  verificationProgress,
+}) {
+  return (
+    <Card className="rounded-2xl border-slate-200 shadow-sm">
+      <CardHeader>
+        <CardTitle>Verification Center</CardTitle>
+        <CardDescription>Verify your identity and track verification progress across multiple levels.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="rounded-2xl border border-slate-200 p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-semibold">Verification Progress</h3>
+            <span className="text-sm text-slate-500">{Math.round(verificationProgress)}%</span>
+          </div>
+          <Progress value={verificationProgress} className="h-2" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="rounded-2xl border-slate-200">
+            <CardContent className="p-5">
+              <h3 className="font-semibold">Request Verification</h3>
+              <div className="mt-3 space-y-3">
+                <Input
+                  placeholder="Requested Level"
+                  value={verificationForm.requestedLevel}
+                  onChange={(event) => setVerificationForm((current) => ({ ...current, requestedLevel: event.target.value }))}
+                />
+                <Input
+                  placeholder="Notes"
+                  value={verificationForm.notes}
+                  onChange={(event) => setVerificationForm((current) => ({ ...current, notes: event.target.value }))}
+                />
+                <Button onClick={handleVerificationRequest} disabled={saving || !capabilities?.actions?.canEditIdentity}>
+                  Submit Request
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="rounded-2xl border-slate-200">
+            <CardContent className="p-5">
+              <h3 className="font-semibold">Upload Document</h3>
+              <div className="mt-3 space-y-3">
+                <Input
+                  placeholder="Document type"
+                  value={documentForm.documentType}
+                  onChange={(event) => setDocumentForm((current) => ({ ...current, documentType: event.target.value }))}
+                />
+                <input
+                  type="file"
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm"
+                  onChange={(event) => setDocumentForm((current) => ({ ...current, file: event.target.files?.[0] || null }))}
+                />
+                <Button onClick={handleDocumentUpload} disabled={saving}>Upload</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MarketplacePanel({ products, capabilities }) {
+  return (
+    <Card className="rounded-2xl border-slate-200 shadow-sm">
+      <CardHeader>
+        <CardTitle>Marketplace</CardTitle>
+        <CardDescription>Browse and purchase products and services.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {products.length ? (
+          products.map((product) => (
+            <Card key={product.id} className="rounded-2xl border-slate-200">
+              <CardContent className="p-5">
+                <p className="font-semibold">{product.name}</p>
+                <p className="mt-2 text-sm text-slate-500">{product.description || 'No description.'}</p>
+                <p className="mt-3 text-lg font-semibold">ARX {Number(product.price || 0).toLocaleString()}</p>
+                <Button className="mt-4 w-full rounded-2xl" disabled={!capabilities?.actions?.canBuyInvest}>
+                  Purchase
+                </Button>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
+            No products available.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReferralPanel({
+  referralStats,
+  referralData,
+  referralCode,
+  referralForm,
+  setReferralForm,
+  saving,
+  handleReferralCreate,
+  copyReferralLink,
+}) {
+  return (
+    <Card className="rounded-2xl border-slate-200 shadow-sm">
+      <CardHeader>
+        <CardTitle>Referral System</CardTitle>
+        <CardDescription>Track and manage your referrals.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-3">
+          <Info title="Total Referrals" value={String(referralData.length || 0)} />
+          <Info title="Referral Code" value={referralCode} />
+          <Info title="Active Rewards" value={`ARX ${Number(referralStats?.totalEarnings || 0).toLocaleString()}`} />
+        </div>
+        <Card className="rounded-2xl border-slate-200">
+          <CardContent className="p-5">
+            <h3 className="font-semibold">Create New Referral</h3>
+            <div className="mt-3 space-y-3">
+              <Input
+                placeholder="Receiver email"
+                value={referralForm.receiverEmail}
+                onChange={(event) => setReferralForm((current) => ({ ...current, receiverEmail: event.target.value }))}
+              />
+              <Button onClick={handleReferralCreate} disabled={saving}>Create Referral</Button>
+            </div>
+          </CardContent>
+        </Card>
+        <Button onClick={copyReferralLink} variant="outline" className="w-full rounded-2xl border-slate-200">
+          Copy Referral Link
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function NotificationsPanel({ notifications }) {
+  return (
+    <Card className="rounded-2xl border-slate-200 shadow-sm">
+      <CardHeader>
+        <CardTitle>Notifications</CardTitle>
+        <CardDescription>View your latest system alerts and updates.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {notifications.length ? (
+          notifications.map((notification) => (
+            <div key={notification.id} className="flex items-start gap-3 rounded-2xl border border-slate-200 p-4">
+              <HiBell className="mt-0.5 h-4 w-4 text-slate-700 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium text-sm">{notification.title}</p>
+                <p className="mt-1 text-xs text-slate-500">{notification.message}</p>
+                <p className="mt-2 text-xs text-slate-400">{formatDate(notification.createdAt)}</p>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+            No notifications at this time.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }

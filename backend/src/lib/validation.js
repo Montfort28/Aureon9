@@ -11,23 +11,16 @@ export function validatePassword(password) {
 
 export function validateParticipantClass(code) {
   const validClasses = [
-    'FOUNDING_MEMBER',
     'GENERAL_MEMBER',
     'CUSTOMER',
     'CHANNEL_PARTNER',
-    'AFFILIATE',
-    'INTERN',
     'DEVELOPER',
-    'EQUITY_AFFILIATE',
-    'EQUITY_PARTNER',
     'STRATEGIC_PARTNER',
     'OEM_PARTNER',
     'TRADE_OPERATOR',
     'CAPITAL_PARTICIPANT',
-    'VERIFICATION_ACTOR',
     'SETTLEMENT_PARTICIPANT',
     'INSTITUTIONAL_PARTICIPANT',
-    'THIRD_PARTY_OPERATOR',
   ];
   return validClasses.includes(code);
 }

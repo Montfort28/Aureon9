@@ -5,7 +5,7 @@ import {
   HiOutlineOfficeBuilding, HiArrowLeft, HiOutlineSparkles, HiOutlineUserGroup, HiOutlineShoppingCart,
   HiOutlineLink, HiOutlineFire, HiOutlineCode, HiOutlineAcademicCap, HiOutlineCreditCard,
   HiOutlineBriefcase, HiOutlineGlobeAlt, HiOutlineCheckCircle, HiOutlineCash, HiOutlineShieldCheck,
-  HiOutlineLibrary, HiOutlineCog
+  HiOutlineLibrary, HiOutlineCog, HiEye, HiEyeOff
 } from 'react-icons/hi';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -112,35 +112,22 @@ const COUNTRIES = [
   { name: 'Zimbabwe', code: '+263' },
 ];
 
-// Icon mapping for each membership type
+// Icon mapping for each membership type - cleaned up
 const MEMBERSHIP_TYPE_ICONS = {
-  FOUNDING_MEMBER: HiOutlineSparkles,
   GENERAL_MEMBER: HiOutlineUserGroup,
   CUSTOMER: HiOutlineShoppingCart,
   CHANNEL_PARTNER: HiOutlineLink,
-  AFFILIATE: HiOutlineFire,
   DEVELOPER: HiOutlineCode,
-  INTERN: HiOutlineAcademicCap,
-  EQUITY_AFFILIATE: HiOutlineCreditCard,
-  EQUITY_PARTNER: HiOutlineBriefcase,
   STRATEGIC_PARTNER: HiOutlineGlobeAlt,
   OEM_PARTNER: HiOutlineCog,
   TRADE_OPERATOR: HiOutlineCheckCircle,
   CAPITAL_PARTICIPANT: HiOutlineCash,
-  VERIFICATION_ACTOR: HiOutlineShieldCheck,
   SETTLEMENT_PARTICIPANT: HiOutlineLibrary,
   INSTITUTIONAL_PARTICIPANT: HiOutlineOfficeBuilding,
-  THIRD_PARTY_OPERATOR: HiOutlineBriefcase,
 };
 
-// All membership types for main selector cards
+// All membership types - cleaned up to remove unsupported types
 const ALL_MEMBERSHIP_TYPES = [
-  {
-    value: 'FOUNDING_MEMBER',
-    label: 'Founding Member',
-    description: 'Founding status with elevated privileges and rewards.',
-    requiresBusinessName: false,
-  },
   {
     value: 'GENERAL_MEMBER',
     label: 'Member',
@@ -155,39 +142,15 @@ const ALL_MEMBERSHIP_TYPES = [
   },
   {
     value: 'CHANNEL_PARTNER',
-    label: 'Channel Partner',
-    description: 'Partnership programs, referrals, and channel growth.',
+    label: 'Channel Partner & Affiliate',
+    description: 'Partnership programs, referrals, promotions, and channel growth.',
     requiresBusinessName: true,
-  },
-  {
-    value: 'AFFILIATE',
-    label: 'Affiliate / Promoter',
-    description: 'Promotion and affiliate participation opportunities.',
-    requiresBusinessName: false,
   },
   {
     value: 'DEVELOPER',
     label: 'Developer',
     description: 'Technology and platform development access.',
     requiresBusinessName: false,
-  },
-  {
-    value: 'INTERN',
-    label: 'Intern',
-    description: 'Internship and talent development programs.',
-    requiresBusinessName: false,
-  },
-  {
-    value: 'EQUITY_AFFILIATE',
-    label: 'Equity Affiliate',
-    description: 'Equity-linked participation and rewards.',
-    requiresBusinessName: true,
-  },
-  {
-    value: 'EQUITY_PARTNER',
-    label: 'Equity Partner',
-    description: 'Strategic equity partnership opportunities.',
-    requiresBusinessName: true,
   },
   {
     value: 'STRATEGIC_PARTNER',
@@ -214,12 +177,6 @@ const ALL_MEMBERSHIP_TYPES = [
     requiresBusinessName: true,
   },
   {
-    value: 'VERIFICATION_ACTOR',
-    label: 'Verification and Compliance Actor',
-    description: 'Verification and compliance participation.',
-    requiresBusinessName: true,
-  },
-  {
     value: 'SETTLEMENT_PARTICIPANT',
     label: 'Settlement Participant',
     description: 'AUREX settlement and wallet participation.',
@@ -229,12 +186,6 @@ const ALL_MEMBERSHIP_TYPES = [
     value: 'INSTITUTIONAL_PARTICIPANT',
     label: 'Institutional Participant',
     description: 'Institutional-level participation and access.',
-    requiresBusinessName: true,
-  },
-  {
-    value: 'THIRD_PARTY_OPERATOR',
-    label: 'Third-Party Operator',
-    description: 'Third-party operational and integration access.',
     requiresBusinessName: true,
   },
 ];
@@ -260,6 +211,13 @@ export default function AuthPage() {
   });
   const [status, setStatus] = useState({ loading: false, error: '', success: '' });
   const [registrationStep, setRegistrationStep] = useState('type-selection'); // 'type-selection' or 'form'
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [route, registrationStep]);
 
   useEffect(() => {
     const referralFromQuery = new URLSearchParams(location.search).get('ref');
@@ -365,7 +323,7 @@ export default function AuthPage() {
 
   if (route === '/forgot-password') {
     return (
-      <div className="flex min-h-[calc(100vh-14rem)] items-center justify-center py-8">
+      <div className="flex min-h-[calc(100vh-14rem)] items-center justify-center py-8 px-4">
         <Card className="w-full max-w-md rounded-[2rem] border-white/60 bg-white/90 shadow-2xl backdrop-blur">
           <CardContent className="space-y-6 p-6 sm:p-8">
             <div className="text-center">
@@ -391,7 +349,7 @@ export default function AuthPage() {
 
   if (route === '/verification-pending') {
     return (
-      <div className="flex min-h-[calc(100vh-14rem)] items-center justify-center py-8">
+      <div className="flex min-h-[calc(100vh-14rem)] items-center justify-center py-8 px-4">
         <Card className="w-full max-w-md rounded-[2rem] border-white/60 bg-white/90 shadow-2xl backdrop-blur">
           <CardContent className="space-y-6 p-6 sm:p-8 text-center">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-amber-100 text-amber-700 shadow-lg">
@@ -423,20 +381,20 @@ export default function AuthPage() {
             <p className="mt-3 text-base leading-8 text-slate-600">Select your membership type to get started</p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-8">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-8">
             {ALL_MEMBERSHIP_TYPES.map((type) => {
               const IconComponent = MEMBERSHIP_TYPE_ICONS[type.value];
               return (
                 <button
                   key={type.value}
                   onClick={() => handleMembershipTypeSelect(type.value)}
-                  className="group rounded-[2rem] border border-white/60 bg-white/85 p-6 shadow-lg shadow-[rgba(10,37,64,0.08)] transition-all duration-300 hover:border-[var(--aureon-ink)] hover:shadow-xl hover:shadow-[rgba(10,37,64,0.14)] hover:-translate-y-1 text-left"
+                  className="group rounded-[2rem] border border-white/60 bg-white/85 p-4 sm:p-6 shadow-lg shadow-[rgba(10,37,64,0.08)] transition-all duration-300 hover:border-[var(--aureon-ink)] hover:shadow-xl hover:shadow-[rgba(10,37,64,0.14)] hover:-translate-y-1 text-left"
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 transition-colors duration-300 group-hover:bg-[var(--aureon-ink)] mb-4">
-                    <IconComponent className="h-6 w-6 text-slate-900 transition-colors duration-300 group-hover:text-white" />
+                  <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-2xl bg-slate-100 transition-colors duration-300 group-hover:bg-[var(--aureon-ink)] mb-3 sm:mb-4">
+                    <IconComponent className="h-5 w-5 sm:h-6 sm:w-6 text-slate-900 transition-colors duration-300 group-hover:text-white" />
                   </div>
-                  <h3 className="font-heading text-lg font-semibold tracking-tight text-[var(--aureon-ink)] mb-2">{type.label}</h3>
-                  <p className="text-sm leading-6 text-slate-600">{type.description}</p>
+                  <h3 className="font-heading text-base sm:text-lg font-semibold tracking-tight text-[var(--aureon-ink)] mb-1 sm:mb-2 break-words">{type.label}</h3>
+                  <p className="text-xs sm:text-sm leading-5 sm:leading-6 text-slate-600">{type.description}</p>
                 </button>
               );
             })}
@@ -466,7 +424,7 @@ export default function AuthPage() {
     const selectedType = ALL_MEMBERSHIP_TYPES.find(t => t.value === registerForm.participantClassCode);
     
     return (
-      <div className="flex min-h-[calc(100vh-14rem)] items-center justify-center py-12">
+      <div className="flex min-h-[calc(100vh-14rem)] items-center justify-center py-12 px-4">
         <Card className="w-full max-w-2xl rounded-[2rem] border-white/60 bg-white/90 shadow-2xl backdrop-blur">
           <CardContent className="space-y-6 p-6 sm:p-8">
             <button
@@ -521,20 +479,42 @@ export default function AuthPage() {
                     onChange={(e) => updateRegister('email', e.target.value)}
                     autoComplete="email"
                   />
-                  <Input
-                    type="password"
-                    placeholder="Password (min 8 characters) *"
-                    value={registerForm.password}
-                    onChange={(e) => updateRegister('password', e.target.value)}
-                    autoComplete="new-password"
-                  />
-                  <Input
-                    type="password"
-                    placeholder="Confirm password *"
-                    value={registerForm.confirmPassword}
-                    onChange={(e) => updateRegister('confirmPassword', e.target.value)}
-                    autoComplete="new-password"
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showRegisterPassword ? "text" : "password"}
+                      placeholder="Password (min 8 characters) *"
+                      value={registerForm.password}
+                      onChange={(e) => updateRegister('password', e.target.value)}
+                      autoComplete="new-password"
+                      className="pr-11"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                      aria-label={showRegisterPassword ? "Hide password" : "Show password"}
+                    >
+                      {showRegisterPassword ? <HiEyeOff className="h-4 w-4" /> : <HiEye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Confirm password *"
+                      value={registerForm.confirmPassword}
+                      onChange={(e) => updateRegister('confirmPassword', e.target.value)}
+                      autoComplete="new-password"
+                      className="pr-11"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                      aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {showConfirmPassword ? <HiEyeOff className="h-4 w-4" /> : <HiEye className="h-4 w-4" />}
+                    </button>
+                  </div>
                   <select
                     value={registerForm.country}
                     onChange={(e) => updateRegister('country', e.target.value)}
@@ -602,7 +582,7 @@ export default function AuthPage() {
 
   // LOGIN (default)
   return (
-    <div className="flex min-h-[calc(100vh-14rem)] items-center justify-center py-8">
+    <div className="flex min-h-[calc(100vh-14rem)] items-center justify-center py-8 px-4">
       <Card className="w-full max-w-md rounded-[2rem] border-white/60 bg-white/90 shadow-2xl backdrop-blur">
         <CardContent className="space-y-6 p-6 sm:p-8">
           <div className="text-center">
@@ -623,14 +603,25 @@ export default function AuthPage() {
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
               autoComplete="off"
             />
-            <Input
-              type="password"
-              placeholder="Password"
-              value={loginForm.password}
-              onChange={(e) => updateLogin('password', e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-              autoComplete="off"
-            />
+            <div className="relative">
+              <Input
+                type={showLoginPassword ? "text" : "password"}
+                placeholder="Password"
+                value={loginForm.password}
+                onChange={(e) => updateLogin('password', e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                autoComplete="off"
+                className="pr-11"
+              />
+              <button
+                type="button"
+                onClick={() => setShowLoginPassword(!showLoginPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                aria-label={showLoginPassword ? "Hide password" : "Show password"}
+              >
+                {showLoginPassword ? <HiEyeOff className="h-4 w-4" /> : <HiEye className="h-4 w-4" />}
+              </button>
+            </div>
             <div className="text-right">
               <button onClick={() => navigate('/forgot-password')} className="text-xs text-slate-500 hover:text-[var(--aureon-ink)]">
                 Forgot password?
@@ -652,16 +643,6 @@ export default function AuthPage() {
               Become a Member
             </button>
           </p>
-
-          {/* Admin credentials hint for dev */}
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
-            <p className="font-semibold text-slate-700">Admin credentials</p>
-            <p className="mt-1">Email: admin@aureon9.com</p>
-            <p>Password: Admin@Aureon9!</p>
-            <p className="mt-2 font-semibold text-slate-700">Seed member credentials</p>
-            <p>Email examples: general.member@aureon9.com, channel.partner@aureon9.com</p>
-            <p>Password: Aureon9@2026!</p>
-          </div>
         </CardContent>
       </Card>
     </div>
